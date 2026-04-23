@@ -63,6 +63,7 @@ type Session struct {
 type Service interface {
 	pubsub.Subscriber[Session]
 	Create(ctx context.Context, title string) (Session, error)
+	CreateSession(ctx context.Context, title string, sessionID string) (Session, error)
 	CreateTitleSession(ctx context.Context, parentSessionID string) (Session, error)
 	CreateTaskSession(ctx context.Context, toolCallID, parentSessionID, title string) (Session, error)
 	Get(ctx context.Context, id string) (Session, error)
@@ -86,8 +87,16 @@ type service struct {
 }
 
 func (s *service) Create(ctx context.Context, title string) (Session, error) {
+	return s.CreateSession(ctx, title, "")
+}
+
+// CreateSession creates a session with a specific ID.
+func (s *service) CreateSession(ctx context.Context, title string, sessionID string) (Session, error) {
+	if sessionID == "" {
+		sessionID = uuid.New().String()
+	}
 	dbSession, err := s.q.CreateSession(ctx, db.CreateSessionParams{
-		ID:    uuid.New().String(),
+		ID:    sessionID,
 		Title: title,
 	})
 	if err != nil {

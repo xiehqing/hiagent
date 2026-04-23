@@ -117,8 +117,8 @@ func (a *App) resolveSession(ctx context.Context, continueSessionID string, useL
 		sess, err := a.AppInstance.Sessions.Get(ctx, continueSessionID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				slog.Info("sdk.resolveSession: : session not found, creating new session", "session_id", continueSessionID)
-				return a.AppInstance.Sessions.Create(ctx, agent.DefaultSessionName)
+				slog.Info("sdk.resolveSession: session not found, creating new session", "session_id", continueSessionID)
+				return a.AppInstance.Sessions.CreateSession(ctx, agent.DefaultSessionName, continueSessionID)
 			}
 			return session.Session{}, fmt.Errorf("sdk.resolveSession: session not found: %s", continueSessionID)
 		}
