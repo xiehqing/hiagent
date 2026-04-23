@@ -78,6 +78,10 @@ func NewPrompt(name, promptTemplate string, opts ...Option) (*Prompt, error) {
 }
 
 func (p *Prompt) Build(ctx context.Context, provider, model string, store *config.ConfigStore) (string, error) {
+	return p.BuildWithSystemPrompt(ctx, provider, model, store, "")
+}
+
+func (p *Prompt) BuildWithSystemPrompt(ctx context.Context, provider, model string, store *config.ConfigStore, additionalPrompt string) (string, error) {
 	t, err := template.New(p.name).Parse(p.template)
 	if err != nil {
 		return "", fmt.Errorf("parsing template: %w", err)
@@ -90,7 +94,11 @@ func (p *Prompt) Build(ctx context.Context, provider, model string, store *confi
 	if err := t.Execute(&sb, d); err != nil {
 		return "", fmt.Errorf("executing template: %w", err)
 	}
-
+	// 追加
+	if additionalPrompt != "" {
+		sb.WriteString("\n")
+		sb.WriteString(additionalPrompt)
+	}
 	return sb.String(), nil
 }
 

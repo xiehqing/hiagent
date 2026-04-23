@@ -19,6 +19,7 @@ type AppConfig struct {
 	Database                  DatabaseConfig `json:"database"`
 	SkipPermissionRequests    bool           `json:"skipPermissionRequests"`
 	DisableProviderAutoUpdate bool           `json:"disableProviderAutoUpdate"`
+	AdditionalSystemPrompt    string         `json:"additionalSystemPrompt"`
 	Debug                     bool           `json:"debug"`
 	SelectedProvider          string         `json:"selectedProvider"`
 	SelectedModel             string         `json:"selectedModel"`
@@ -87,6 +88,12 @@ func WithSelectedModel(selectedModel string) Option {
 func WithDisableProviderAutoUpdate(disableProviderAutoUpdate bool) Option {
 	return func(o *Options) {
 		o.cfg.DisableProviderAutoUpdate = disableProviderAutoUpdate
+	}
+}
+
+func WithAdditionalSystemPrompt(additionalSystemPrompt string) Option {
+	return func(o *Options) {
+		o.cfg.AdditionalSystemPrompt = additionalSystemPrompt
 	}
 }
 

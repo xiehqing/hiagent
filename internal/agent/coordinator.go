@@ -78,14 +78,15 @@ type Coordinator interface {
 }
 
 type coordinator struct {
-	cfg         *config.ConfigStore
-	sessions    session.Service
-	messages    message.Service
-	permissions permission.Service
-	history     history.Service
-	filetracker filetracker.Service
-	lspManager  *lsp.Manager
-	notify      pubsub.Publisher[notify.Notification]
+	cfg                    *config.ConfigStore
+	sessions               session.Service
+	messages               message.Service
+	permissions            permission.Service
+	history                history.Service
+	filetracker            filetracker.Service
+	lspManager             *lsp.Manager
+	additionalSystemPrompt string
+	notify                 pubsub.Publisher[notify.Notification]
 
 	currentAgent SessionAgent
 	agents       map[string]SessionAgent
@@ -101,6 +102,7 @@ type coordinator struct {
 func NewCoordinator(
 	ctx context.Context,
 	cfg *config.ConfigStore,
+	additionalSystemPrompt string,
 	sessions session.Service,
 	messages message.Service,
 	permissions permission.Service,
@@ -114,18 +116,19 @@ func NewCoordinator(
 	skillTracker := skills.NewTracker(activeSkills)
 
 	c := &coordinator{
-		cfg:          cfg,
-		sessions:     sessions,
-		messages:     messages,
-		permissions:  permissions,
-		history:      history,
-		filetracker:  filetracker,
-		lspManager:   lspManager,
-		notify:       notify,
-		agents:       make(map[string]SessionAgent),
-		allSkills:    allSkills,
-		activeSkills: activeSkills,
-		skillTracker: skillTracker,
+		cfg:                    cfg,
+		sessions:               sessions,
+		messages:               messages,
+		permissions:            permissions,
+		history:                history,
+		filetracker:            filetracker,
+		lspManager:             lspManager,
+		notify:                 notify,
+		additionalSystemPrompt: additionalSystemPrompt,
+		agents:                 make(map[string]SessionAgent),
+		allSkills:              allSkills,
+		activeSkills:           activeSkills,
+		skillTracker:           skillTracker,
 	}
 
 	agentCfg, ok := cfg.Config().Agents[config.AgentCoder]
@@ -417,7 +420,7 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 	})
 
 	c.readyWg.Go(func() error {
-		systemPrompt, err := prompt.Build(ctx, large.Model.Provider(), large.Model.Model(), c.cfg)
+		systemPrompt, err := prompt.BuildWithSystemPrompt(ctx, large.Model.Provider(), large.Model.Model(), c.cfg, c.additionalSystemPrompt)
 		if err != nil {
 			return err
 		}

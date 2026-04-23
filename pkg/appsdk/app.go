@@ -83,7 +83,7 @@ func New(ctx context.Context, opts ...Option) (*App, error) {
 			return nil, errors.WithMessage(err, "sdk.New: failed to set runtime preferred model")
 		}
 	}
-	app, err := app.New(ctx, conn, cfg)
+	app, err := app.NewWithSystemPrompt(ctx, conn, cfg, o.cfg.AdditionalSystemPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("sdk.New: failed to create app workspace: %w", err)
 	}

@@ -75,8 +75,12 @@ type App struct {
 	agentNotifications *pubsub.Broker[notify.Notification]
 }
 
-// New initializes a new application instance.
 func New(ctx context.Context, conn *sql.DB, store *config.ConfigStore) (*App, error) {
+	return NewWithSystemPrompt(ctx, conn, store, "")
+}
+
+// NewWithSystemPrompt initializes a new application instance.
+func NewWithSystemPrompt(ctx context.Context, conn *sql.DB, store *config.ConfigStore, additionalSystemPrompt string) (*App, error) {
 	q := db.New(conn)
 	sessions := session.NewService(q, conn)
 	messages := message.NewService(q)
@@ -125,7 +129,7 @@ func New(ctx context.Context, conn *sql.DB, store *config.ConfigStore) (*App, er
 		slog.Warn("No agent configuration found")
 		return app, nil
 	}
-	if err := app.InitCoderAgent(ctx); err != nil {
+	if err := app.InitCoderAgentWithSystemPrompt(ctx, additionalSystemPrompt); err != nil {
 		return nil, fmt.Errorf("failed to initialize coder agent: %w", err)
 	}
 
@@ -543,6 +547,10 @@ func setupSubscriber[T any](
 }
 
 func (app *App) InitCoderAgent(ctx context.Context) error {
+	return app.InitCoderAgentWithSystemPrompt(ctx, "")
+}
+
+func (app *App) InitCoderAgentWithSystemPrompt(ctx context.Context, additionalSystemPrompt string) error {
 	coderAgentCfg := app.config.Config().Agents[config.AgentCoder]
 	if coderAgentCfg.ID == "" {
 		return fmt.Errorf("coder agent configuration is missing")
@@ -551,6 +559,7 @@ func (app *App) InitCoderAgent(ctx context.Context) error {
 	app.AgentCoordinator, err = agent.NewCoordinator(
 		ctx,
 		app.config,
+		additionalSystemPrompt,
 		app.Sessions,
 		app.Messages,
 		app.Permissions,
