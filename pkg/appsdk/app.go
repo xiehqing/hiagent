@@ -112,21 +112,25 @@ func (a *App) resolveSession(ctx context.Context, continueSessionID string, useL
 	switch {
 	case continueSessionID != "":
 		if a.AppInstance.Sessions.IsAgentToolSession(continueSessionID) {
-			return session.Session{}, fmt.Errorf("cannot continue an agent tool session: %s", continueSessionID)
+			return session.Session{}, fmt.Errorf("sdk.resolveSession: cannot continue an agent tool session: %s", continueSessionID)
 		}
 		sess, err := a.AppInstance.Sessions.Get(ctx, continueSessionID)
 		if err != nil {
-			return session.Session{}, fmt.Errorf("session not found: %s", continueSessionID)
+			if errors.Is(err, sql.ErrNoRows) {
+				slog.Info("sdk.resolveSession: : session not found, creating new session", "session_id", continueSessionID)
+				return a.AppInstance.Sessions.Create(ctx, agent.DefaultSessionName)
+			}
+			return session.Session{}, fmt.Errorf("sdk.resolveSession: session not found: %s", continueSessionID)
 		}
 		if sess.ParentSessionID != "" {
-			return session.Session{}, fmt.Errorf("cannot continue a child session: %s", continueSessionID)
+			return session.Session{}, fmt.Errorf("sdk.resolveSession: cannot continue a child session: %s", continueSessionID)
 		}
 		return sess, nil
 
 	case useLast:
 		sess, err := a.AppInstance.Sessions.GetLast(ctx)
 		if err != nil {
-			return session.Session{}, fmt.Errorf("no sessions found to continue")
+			return session.Session{}, fmt.Errorf("sdk.resolveSession: no sessions found to continue")
 		}
 		return sess, nil
 

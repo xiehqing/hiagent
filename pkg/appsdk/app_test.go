@@ -20,7 +20,7 @@ func TestAppRun(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	res, err := app.SubmitMessage(context.Background(), "你好", "", false)
+	res, err := app.SubmitMessage(context.Background(), "你好", "asdasda", false)
 	if err != nil {
 		t.Error(err)
 		return
