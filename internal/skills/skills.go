@@ -239,7 +239,7 @@ func DiscoverWithStates(paths []string) ([]*Skill, []*SkillState) {
 			return nil
 		})
 		if err != nil {
-			slog.Warn("Failed to walk skills path", "path", base, "error", err)
+			slog.Debug("Failed to walk skills path", "path", base, "error", err)
 		}
 	}
 
