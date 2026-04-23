@@ -10,12 +10,14 @@ import (
 	"github.com/xiehqing/hiagent/internal/app"
 	"github.com/xiehqing/hiagent/internal/config"
 	"github.com/xiehqing/hiagent/internal/db"
+	"github.com/xiehqing/hiagent/internal/message"
+	"github.com/xiehqing/hiagent/internal/pubsub"
 	"github.com/xiehqing/hiagent/internal/session"
 	"log/slog"
 )
 
 type App struct {
-	app *app.App
+	AppInstance *app.App
 }
 
 // setDatabaseOptions sets the database options in the config.
@@ -85,11 +87,11 @@ func New(ctx context.Context, opts ...Option) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("sdk.New: failed to create app workspace: %w", err)
 	}
-	return &App{app: app}, nil
+	return &App{AppInstance: app}, nil
 }
 
 func (a *App) SubmitMessage(ctx context.Context, prompt string, continueSessionID string, useLast bool) (*fantasy.AgentResult, error) {
-	if a.app.AgentCoordinator == nil {
+	if a.AppInstance.AgentCoordinator == nil {
 		return nil, fmt.Errorf("sdk.SubmitMessage: agent coordinator is nil")
 	}
 	session, err := a.resolveSession(ctx, continueSessionID, useLast)
@@ -103,16 +105,16 @@ func (a *App) SubmitMessage(ctx context.Context, prompt string, continueSessionI
 	} else {
 		slog.Info("sdk.SubmitMessage: created session for sdk run", "session_id", session.ID)
 	}
-	return a.app.AgentCoordinator.Run(ctx, session.ID, prompt)
+	return a.AppInstance.AgentCoordinator.Run(ctx, session.ID, prompt)
 }
 
 func (a *App) resolveSession(ctx context.Context, continueSessionID string, useLast bool) (session.Session, error) {
 	switch {
 	case continueSessionID != "":
-		if a.app.Sessions.IsAgentToolSession(continueSessionID) {
+		if a.AppInstance.Sessions.IsAgentToolSession(continueSessionID) {
 			return session.Session{}, fmt.Errorf("cannot continue an agent tool session: %s", continueSessionID)
 		}
-		sess, err := a.app.Sessions.Get(ctx, continueSessionID)
+		sess, err := a.AppInstance.Sessions.Get(ctx, continueSessionID)
 		if err != nil {
 			return session.Session{}, fmt.Errorf("session not found: %s", continueSessionID)
 		}
@@ -122,13 +124,18 @@ func (a *App) resolveSession(ctx context.Context, continueSessionID string, useL
 		return sess, nil
 
 	case useLast:
-		sess, err := a.app.Sessions.GetLast(ctx)
+		sess, err := a.AppInstance.Sessions.GetLast(ctx)
 		if err != nil {
 			return session.Session{}, fmt.Errorf("no sessions found to continue")
 		}
 		return sess, nil
 
 	default:
-		return a.app.Sessions.Create(ctx, agent.DefaultSessionName)
+		return a.AppInstance.Sessions.Create(ctx, agent.DefaultSessionName)
 	}
+}
+
+// SubscribeMessage subscribes to the message channel.
+func (a *App) SubscribeMessage(ctx context.Context) <-chan pubsub.Event[message.Message] {
+	return a.AppInstance.Messages.Subscribe(ctx)
 }
