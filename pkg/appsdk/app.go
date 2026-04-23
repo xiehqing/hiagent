@@ -139,3 +139,8 @@ func (a *App) resolveSession(ctx context.Context, continueSessionID string, useL
 func (a *App) SubscribeMessage(ctx context.Context) <-chan pubsub.Event[message.Message] {
 	return a.AppInstance.Messages.Subscribe(ctx)
 }
+
+// Shutdown shuts down the app.
+func (a *App) Shutdown() {
+	a.AppInstance.Shutdown()
+}
