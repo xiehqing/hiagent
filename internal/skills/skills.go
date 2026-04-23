@@ -206,7 +206,7 @@ func DiscoverWithStates(paths []string) ([]*Skill, []*SkillState) {
 		}
 		err := fastwalk.Walk(&conf, base, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
-				slog.Warn("Failed to walk skills path entry", "base", base, "path", path, "error", err)
+				slog.Debug("Failed to walk skills path entry", "base", base, "path", path, "error", err)
 				addState("", path, StateError, err)
 				return nil
 			}
