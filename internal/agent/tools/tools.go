@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"charm.land/fantasy"
 )
 
 type (
@@ -59,12 +61,20 @@ func GetModelNameFromContext(ctx context.Context) string {
 	return getContextValue(ctx, ModelNameContextKey, "")
 }
 
+// NewPermissionDeniedResponse returns a tool response indicating the user
+// denied permission, with StopTurn set so the agent loop does not retry.
+func NewPermissionDeniedResponse() fantasy.ToolResponse {
+	resp := fantasy.NewTextErrorResponse("User denied permission")
+	resp.StopTurn = true
+	return resp
+}
+
 // FirstLineDescription returns just the first non-empty line from the embedded
-// markdown description when CRUSH_SHORT_TOOL_DESCRIPTIONS is set, significantly
-// reducing token usage. Otherwise returns the full description.
+// markdown description. The full description can be used by setting
+// CRUSH_SHORT_TOOL_DESCRIPTIONS=0.
 func FirstLineDescription(content []byte) string {
 	if !testing.Testing() {
-		if v, _ := strconv.ParseBool(os.Getenv("CRUSH_SHORT_TOOL_DESCRIPTIONS")); !v {
+		if v, err := strconv.ParseBool(os.Getenv("CRUSH_SHORT_TOOL_DESCRIPTIONS")); err == nil && !v {
 			return strings.TrimSpace(string(content))
 		}
 	}

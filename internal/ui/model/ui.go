@@ -269,7 +269,7 @@ type UI struct {
 func New(com *common.Common, initialSessionID string, continueLast bool) *UI {
 	// Editor components
 	ta := textarea.New()
-	ta.SetStyles(com.Styles.TextArea)
+	ta.SetStyles(com.Styles.Editor.Textarea)
 	ta.ShowLineNumbers = false
 	ta.CharLimit = -1
 	ta.SetVirtualCursor(false)
@@ -1092,9 +1092,10 @@ func (m *UI) handleClickFocus(msg tea.MouseClickMsg) (cmd tea.Cmd) {
 	return cmd
 }
 
-// updateSessionMessage updates an existing message in the current session in the chat
-// when an assistant message is updated it may include updated tool calls as well
-// that is why we need to handle creating/updating each tool call message too
+// updateSessionMessage updates an existing message in the current session in
+// the chat when an assistant message is updated it may include updated tool
+// calls as well that is why we need to handle creating/updating each tool call
+// message too.
 func (m *UI) updateSessionMessage(msg message.Message) tea.Cmd {
 	var cmds []tea.Cmd
 	existingItem := m.chat.MessageItem(msg.ID)
@@ -1106,15 +1107,21 @@ func (m *UI) updateSessionMessage(msg message.Message) tea.Cmd {
 	}
 
 	shouldRenderAssistant := chat.ShouldRenderAssistantMessage(&msg)
-	// if the message of the assistant does not have any  response just tool calls we need to remove it
+	isEndTurn := msg.FinishPart() != nil && msg.FinishPart().Reason == message.FinishReasonEndTurn
+	// If the message of the assistant does not have any response just tool
+	// calls we need to remove it, but keep the info item for end-of-turn
+	// renders so the footer (model/provider/duration) remains visible when,
+	// for example, a hook halts the turn.
 	if !shouldRenderAssistant && len(msg.ToolCalls()) > 0 && existingItem != nil {
 		m.chat.RemoveMessage(msg.ID)
-		if infoItem := m.chat.MessageItem(chat.AssistantInfoID(msg.ID)); infoItem != nil {
-			m.chat.RemoveMessage(chat.AssistantInfoID(msg.ID))
+		if !isEndTurn {
+			if infoItem := m.chat.MessageItem(chat.AssistantInfoID(msg.ID)); infoItem != nil {
+				m.chat.RemoveMessage(chat.AssistantInfoID(msg.ID))
+			}
 		}
 	}
 
-	if shouldRenderAssistant && msg.FinishPart() != nil && msg.FinishPart().Reason == message.FinishReasonEndTurn {
+	if isEndTurn {
 		if infoItem := m.chat.MessageItem(chat.AssistantInfoID(msg.ID)); infoItem == nil {
 			newInfoItem := chat.NewAssistantInfoItem(m.com.Styles, &msg, m.com.Config(), time.Unix(m.lastUserMessageTime, 0))
 			m.chat.AppendMessages(newInfoItem)
@@ -2745,9 +2752,9 @@ func (m *UI) normalPromptFunc(info textarea.PromptInfo) string {
 		return "::: "
 	}
 	if info.Focused {
-		return t.EditorPromptNormalFocused.Render()
+		return t.Editor.PromptNormalFocused.Render()
 	}
-	return t.EditorPromptNormalBlurred.Render()
+	return t.Editor.PromptNormalBlurred.Render()
 }
 
 // yoloPromptFunc returns the yolo mode editor prompt style with warning icon
@@ -2756,15 +2763,15 @@ func (m *UI) yoloPromptFunc(info textarea.PromptInfo) string {
 	t := m.com.Styles
 	if info.LineNumber == 0 {
 		if info.Focused {
-			return t.EditorPromptYoloIconFocused.Render()
+			return t.Editor.PromptYoloIconFocused.Render()
 		} else {
-			return t.EditorPromptYoloIconBlurred.Render()
+			return t.Editor.PromptYoloIconBlurred.Render()
 		}
 	}
 	if info.Focused {
-		return t.EditorPromptYoloDotsFocused.Render()
+		return t.Editor.PromptYoloDotsFocused.Render()
 	}
-	return t.EditorPromptYoloDotsBlurred.Render()
+	return t.Editor.PromptYoloDotsBlurred.Render()
 }
 
 // closeCompletions closes the completions popup and resets state.
@@ -3010,8 +3017,7 @@ func (m *UI) sendMessage(content string, attachments ...message.Attachment) tea.
 		err := m.com.Workspace.AgentRun(context.Background(), sessionID, content, attachments...)
 		if err != nil {
 			isCancelErr := errors.Is(err, context.Canceled)
-			isPermissionErr := errors.Is(err, permission.ErrorPermissionDenied)
-			if isCancelErr || isPermissionErr {
+			if isCancelErr {
 				return nil
 			}
 			return util.InfoMsg{
@@ -3536,7 +3542,7 @@ func (m *UI) drawSessionDetails(scr uv.Screen, area uv.Rectangle) {
 		blocks...,
 	)
 
-	version := s.CompactDetails.Version.Foreground(s.Border).Width(width).AlignHorizontal(lipgloss.Right).Render(version.Version)
+	version := s.CompactDetails.Version.Width(width).AlignHorizontal(lipgloss.Right).Render(version.Version)
 
 	remainingHeight := height - lipgloss.Height(detailsHeader) - lipgloss.Height(version)
 
@@ -3651,12 +3657,12 @@ func (m *UI) disableDockerMCP() tea.Msg {
 
 // renderLogo renders the Crush logo with the given styles and dimensions.
 func renderLogo(t *styles.Styles, compact bool, width int) string {
-	return logo.Render(t, version.Version, compact, logo.Opts{
-		FieldColor:   t.LogoFieldColor,
-		TitleColorA:  t.LogoTitleColorA,
-		TitleColorB:  t.LogoTitleColorB,
-		CharmColor:   t.LogoCharmColor,
-		VersionColor: t.LogoVersionColor,
+	return logo.Render(t.Logo.GradCanvas, version.Version, compact, logo.Opts{
+		FieldColor:   t.Logo.FieldColor,
+		TitleColorA:  t.Logo.TitleColorA,
+		TitleColorB:  t.Logo.TitleColorB,
+		CharmColor:   t.Logo.CharmColor,
+		VersionColor: t.Logo.VersionColor,
 		Width:        width,
 	})
 }

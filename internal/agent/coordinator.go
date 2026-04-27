@@ -27,6 +27,7 @@ import (
 	"github.com/xiehqing/hiagent/internal/filetracker"
 	"github.com/xiehqing/hiagent/internal/history"
 	"github.com/xiehqing/hiagent/internal/home"
+	"github.com/xiehqing/hiagent/internal/hooks"
 	"github.com/xiehqing/hiagent/internal/log"
 	"github.com/xiehqing/hiagent/internal/lsp"
 	"github.com/xiehqing/hiagent/internal/message"
@@ -189,7 +190,9 @@ func (c *coordinator) Run(ctx context.Context, sessionID string, prompt string, 
 	if providerCfg.OAuthToken != nil && providerCfg.OAuthToken.IsExpired() {
 		slog.Debug("Token needs to be refreshed", "provider", providerCfg.ID)
 		if err := c.refreshOAuth2Token(ctx, providerCfg); err != nil {
-			return nil, err
+			// NOTE(@andreynering): We don't return here because the event handling to ask the user to reauthenticate
+			// depends on the flow below. If refresh fails, proceed with the token we have.
+			slog.Error("Failed to refresh OAuth2 token. Proceeding with existing token.", "error", err)
 		}
 	}
 
@@ -429,7 +432,7 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 	})
 
 	c.readyWg.Go(func() error {
-		tools, err := c.buildTools(ctx, agent)
+		tools, err := c.buildTools(ctx, agent, isSubAgent)
 		if err != nil {
 			return err
 		}
@@ -440,7 +443,7 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 	return result, nil
 }
 
-func (c *coordinator) buildTools(ctx context.Context, agent config.Agent) ([]fantasy.AgentTool, error) {
+func (c *coordinator) buildTools(ctx context.Context, agent config.Agent, isSubAgent bool) ([]fantasy.AgentTool, error) {
 	var allTools []fantasy.AgentTool
 	if slices.Contains(agent.AllowedTools, AgentToolName) {
 		agentTool, err := c.agentTool(ctx)
@@ -467,6 +470,12 @@ func (c *coordinator) buildTools(ctx context.Context, agent config.Agent) ([]fan
 	}
 
 	logFile := filepath.Join(c.cfg.Config().Options.DataDirectory, "logs", "crush.log")
+
+	// Build hook runner if PreToolUse hooks are configured.
+	var hookRunner *hooks.Runner
+	if preToolHooks := c.cfg.Config().Hooks[hooks.EventPreToolUse]; len(preToolHooks) > 0 {
+		hookRunner = hooks.NewRunner(preToolHooks, c.cfg.WorkingDir(), c.cfg.WorkingDir())
+	}
 
 	allTools = append(allTools,
 		tools.NewBashTool(c.permissions, c.cfg.WorkingDir(), c.cfg.Config().Options.Attribution, modelName),
@@ -533,6 +542,14 @@ func (c *coordinator) buildTools(ctx context.Context, agent config.Agent) ([]fan
 	slices.SortFunc(filteredTools, func(a, b fantasy.AgentTool) int {
 		return strings.Compare(a.Info().Name, b.Info().Name)
 	})
+
+	// Wrap tools with hook interception for the top-level agent only.
+	// Sub-agents (the `agent` task tool, `agentic_fetch`, etc.) run
+	// without hook interception to avoid firing the user's hook N times
+	// per delegated turn. The top-level invocation of the sub-agent tool
+	// itself is still wrapped from the coder's side.
+	filteredTools = wrapToolsWithHooks(filteredTools, hookRunner, isSubAgent)
+
 	return filteredTools, nil
 }
 
@@ -911,7 +928,7 @@ func (c *coordinator) UpdateModels(ctx context.Context) error {
 		return errCoderAgentNotConfigured
 	}
 
-	tools, err := c.buildTools(ctx, agentCfg)
+	tools, err := c.buildTools(ctx, agentCfg, false)
 	if err != nil {
 		return err
 	}

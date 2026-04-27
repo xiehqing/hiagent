@@ -87,7 +87,17 @@ type service struct {
 }
 
 func (s *service) Create(ctx context.Context, title string) (Session, error) {
-	return s.CreateSession(ctx, title, "")
+	dbSession, err := s.q.CreateSession(ctx, db.CreateSessionParams{
+		ID:    uuid.New().String(),
+		Title: title,
+	})
+	if err != nil {
+		return Session{}, err
+	}
+	session := s.fromDBItem(dbSession)
+	s.Publish(pubsub.CreatedEvent, session)
+	event.SessionCreated()
+	return session, nil
 }
 
 // CreateSession creates a session with a specific ID.

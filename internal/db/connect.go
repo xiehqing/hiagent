@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,15 +16,19 @@ import (
 	"github.com/xiehqing/hiagent/internal/config"
 )
 
-var pragmas = map[string]string{
-	"foreign_keys":  "ON",
-	"journal_mode":  "WAL",
-	"page_size":     "4096",
-	"cache_size":    "-8000",
-	"synchronous":   "NORMAL",
-	"secure_delete": "ON",
-	"busy_timeout":  "30000",
-}
+var (
+	pragmas = map[string]string{
+		"foreign_keys":  "ON",
+		"journal_mode":  "WAL",
+		"page_size":     "4096",
+		"cache_size":    "-8000",
+		"synchronous":   "NORMAL",
+		"secure_delete": "ON",
+		"busy_timeout":  "30000",
+	}
+	gooseInitOnce sync.Once
+	gooseInitErr  error
+)
 
 //go:embed migrations/*.sql
 var FS embed.FS
@@ -56,18 +61,26 @@ func Connect(ctx context.Context, dataDir string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	if err := goose.SetDialect("sqlite3"); err != nil {
-		slog.Error("Failed to set dialect", "error", err)
-		return nil, fmt.Errorf("failed to set dialect: %w", err)
+	if err := initGoose(); err != nil {
+		slog.Error("Failed to initialize goose", "error", err)
+		return nil, fmt.Errorf("failed to initialize goose: %w", err)
 	}
 
-	goose.SetBaseFS(FS)
 	if err := goose.Up(db, "migrations"); err != nil {
 		slog.Error("Failed to apply migrations", "error", err)
 		return nil, fmt.Errorf("failed to apply migrations: %w", err)
 	}
 
 	return db, nil
+}
+
+func initGoose() error {
+	gooseInitOnce.Do(func() {
+		goose.SetBaseFS(FS)
+		gooseInitErr = goose.SetDialect("sqlite3")
+	})
+
+	return gooseInitErr
 }
 
 // ConnectWithConfig opens the configured database backend.
