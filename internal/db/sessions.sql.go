@@ -8,6 +8,8 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
 )
 
 const createSession = `-- name: CreateSession :one
@@ -163,6 +165,57 @@ func (q *Queries) ListSessions(ctx context.Context) ([]Session, error) {
 		return nil, err
 	}
 	defer rows.Close()
+	items := []Session{}
+	for rows.Next() {
+		var i Session
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentSessionID,
+			&i.Title,
+			&i.MessageCount,
+			&i.PromptTokens,
+			&i.CompletionTokens,
+			&i.Cost,
+			&i.UpdatedAt,
+			&i.CreatedAt,
+			&i.SummaryMessageID,
+			&i.Todos,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (q *Queries) ListSessionsByIDs(ctx context.Context, ids []string) ([]Session, error) {
+	if len(ids) == 0 {
+		return []Session{}, nil
+	}
+
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
+	query := fmt.Sprintf(`SELECT id, parent_session_id, title, message_count, prompt_tokens, completion_tokens, cost, updated_at, created_at, summary_message_id, todos
+FROM sessions
+WHERE id IN (%s)
+ORDER BY updated_at DESC`, placeholders)
+
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+
+	rows, err := q.query(ctx, nil, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
 	items := []Session{}
 	for rows.Next() {
 		var i Session

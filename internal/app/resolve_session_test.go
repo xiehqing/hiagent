@@ -62,6 +62,10 @@ func (m *mockSessionService) List(context.Context) ([]session.Session, error) {
 	return m.sessions, nil
 }
 
+func (m *mockSessionService) ListByIDs(ctx context.Context, ids []string) ([]session.Session, error) {
+	return m.sessions, nil
+}
+
 func (m *mockSessionService) Save(_ context.Context, s session.Session) (session.Session, error) {
 	return s, nil
 }

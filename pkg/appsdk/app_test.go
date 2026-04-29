@@ -111,3 +111,28 @@ func TestNew(t *testing.T) {
 		}
 	}
 }
+
+func TestApi(t *testing.T) {
+	var opts = []Option{
+		WithDatabaseDriver("mysql"),
+		WithDatabaseDSN("root:zorkdata.8888@tcp(192.168.12.34:3306)/crush_dev?charset=utf8mb4&parseTime=True&loc=Local"),
+		WithWorkDir("C:\\projectData\\biddata\\ceshi\\bid\\extract"),
+		WithSkipPermissionRequests(true),
+		WithDebug(false),
+		WithSelectedProvider("deepseek"),
+		WithSelectedModel("deepseek-reasoner"),
+	}
+	app, err := New(context.Background(), opts...)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer app.Shutdown()
+	providers := app.Providers()
+	bytes, err := json.Marshal(providers)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	t.Log(string(bytes))
+}

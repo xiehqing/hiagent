@@ -69,6 +69,7 @@ type Service interface {
 	Get(ctx context.Context, id string) (Session, error)
 	GetLast(ctx context.Context) (Session, error)
 	List(ctx context.Context) ([]Session, error)
+	ListByIDs(ctx context.Context, ids []string) ([]Session, error)
 	Save(ctx context.Context, session Session) (Session, error)
 	UpdateTitleAndUsage(ctx context.Context, sessionID, title string, promptTokens, completionTokens int64, cost float64) error
 	Rename(ctx context.Context, id string, title string) error
@@ -246,6 +247,18 @@ func (s *service) Rename(ctx context.Context, id string, title string) error {
 
 func (s *service) List(ctx context.Context) ([]Session, error) {
 	dbSessions, err := s.q.ListSessions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sessions := make([]Session, len(dbSessions))
+	for i, dbSession := range dbSessions {
+		sessions[i] = s.fromDBItem(dbSession)
+	}
+	return sessions, nil
+}
+
+func (s *service) ListByIDs(ctx context.Context, ids []string) ([]Session, error) {
+	dbSessions, err := s.q.ListSessionsByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}

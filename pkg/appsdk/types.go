@@ -2,6 +2,8 @@ package appsdk
 
 import (
 	"fmt"
+	"github.com/xiehqing/hiagent/internal/history"
+	"github.com/xiehqing/hiagent/internal/message"
 	"os"
 	"path/filepath"
 )
@@ -110,4 +112,18 @@ func createDotCrushDir(dir string) error {
 		}
 	}
 	return nil
+}
+
+// DataMessage 数据消息
+type DataMessage struct {
+	ID               string                `json:"id"`
+	Role             message.MessageRole   `json:"role"`
+	SessionID        string                `json:"session_id"`
+	Parts            []message.ContentPart `json:"parts"`
+	Model            string                `json:"model"`
+	Provider         string                `json:"provider"`
+	CreatedAt        int64                 `json:"createdAt"`
+	UpdatedAt        int64                 `json:"updatedAt"`
+	IsSummaryMessage bool                  `json:"is_summary_message"`
+	Files            []history.File        `json:"files,omitempty"`
 }
