@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/xiehqing/hiagent/internal/history"
 	"github.com/xiehqing/hiagent/internal/message"
+	"log/slog"
 	"os"
 	"path/filepath"
 )
@@ -116,14 +117,62 @@ func createDotCrushDir(dir string) error {
 
 // DataMessage 数据消息
 type DataMessage struct {
-	ID               string                `json:"id"`
-	Role             message.MessageRole   `json:"role"`
-	SessionID        string                `json:"session_id"`
-	Parts            []message.ContentPart `json:"parts"`
-	Model            string                `json:"model"`
-	Provider         string                `json:"provider"`
-	CreatedAt        string                `json:"createdAt"`
-	UpdatedAt        string                `json:"updatedAt"`
-	IsSummaryMessage bool                  `json:"is_summary_message"`
-	Files            []history.File        `json:"files,omitempty"`
+	ID               string              `json:"id"`
+	Role             message.MessageRole `json:"role"`
+	SessionID        string              `json:"session_id"`
+	Parts            []ContentPartData   `json:"parts"`
+	Model            string              `json:"model"`
+	Provider         string              `json:"provider"`
+	CreatedAt        string              `json:"createdAt"`
+	UpdatedAt        string              `json:"updatedAt"`
+	IsSummaryMessage bool                `json:"is_summary_message"`
+	Files            []history.File      `json:"files,omitempty"`
+}
+
+type ContentPartType string
+
+const (
+	ReasoningType  ContentPartType = "reasoning"
+	TextType       ContentPartType = "text"
+	ImageURLType   ContentPartType = "image_url"
+	BinaryType     ContentPartType = "binary"
+	ToolCallType   ContentPartType = "tool_call"
+	ToolResultType ContentPartType = "tool_result"
+	FinishType     ContentPartType = "finish"
+)
+
+type ContentPartData struct {
+	Type ContentPartType     `json:"type"`
+	Data message.ContentPart `json:"data"`
+}
+
+func marshalParts(parts []message.ContentPart) []ContentPartData {
+	wrappedParts := make([]ContentPartData, len(parts))
+	for i, part := range parts {
+		var typ ContentPartType
+		switch part.(type) {
+		case message.ReasoningContent:
+			typ = ReasoningType
+		case message.TextContent:
+			typ = TextType
+		case message.ImageURLContent:
+			typ = ImageURLType
+		case message.BinaryContent:
+			typ = BinaryType
+		case message.ToolCall:
+			typ = ToolCallType
+		case message.ToolResult:
+			typ = ToolResultType
+		case message.Finish:
+			typ = FinishType
+		default:
+			slog.Error("unknown part type: ", "part", part)
+			continue
+		}
+		wrappedParts[i] = ContentPartData{
+			Type: typ,
+			Data: part,
+		}
+	}
+	return wrappedParts
 }

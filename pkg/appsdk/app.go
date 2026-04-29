@@ -287,11 +287,12 @@ func (a *AppService) SessionMessages(ctx context.Context, sessionID string) ([]D
 	//mergeMessages := a.mergeMessages(messages)
 	messageList := make([]DataMessage, 0)
 	for i, msg := range messages {
+		contentPartData := marshalParts(msg.Parts)
 		dm := DataMessage{
 			ID:               msg.ID,
 			Role:             msg.Role,
 			SessionID:        msg.SessionID,
-			Parts:            msg.Parts,
+			Parts:            contentPartData,
 			Model:            msg.Model,
 			Provider:         msg.Provider,
 			IsSummaryMessage: msg.IsSummaryMessage,

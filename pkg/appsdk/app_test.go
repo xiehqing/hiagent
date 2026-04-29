@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xiehqing/hiagent/internal/message"
+	"os"
 	"testing"
 	"time"
 )
@@ -113,26 +114,50 @@ func TestNew(t *testing.T) {
 }
 
 func TestApi(t *testing.T) {
-	var opts = []Option{
-		WithDatabaseDriver("mysql"),
-		WithDatabaseDSN("root:zorkdata.8888@tcp(192.168.12.34:3306)/crush_dev?charset=utf8mb4&parseTime=True&loc=Local"),
-		WithWorkDir("C:\\projectData\\biddata\\ceshi\\bid\\extract"),
-		WithSkipPermissionRequests(true),
-		WithDebug(false),
-		WithSelectedProvider("deepseek"),
-		WithSelectedModel("deepseek-reasoner"),
-	}
-	app, err := New(context.Background(), opts...)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer app.Shutdown()
-	providers := app.Providers()
-	bytes, err := json.Marshal(providers)
+	//var opts = []Option{
+	//	WithDatabaseDriver("mysql"),
+	//	WithDatabaseDSN("root:zorkdata.8888@tcp(192.168.12.34:3306)/crush_dev?charset=utf8mb4&parseTime=True&loc=Local"),
+	//	WithWorkDir("C:\\projectData\\biddata\\ceshi\\bid\\extract"),
+	//	WithSkipPermissionRequests(true),
+	//	WithDebug(false),
+	//	WithSelectedProvider("deepseek"),
+	//	WithSelectedModel("deepseek-reasoner"),
+	//}
+	conn, err := handleDatabaseConnection(context.Background(), "", &DatabaseConfig{
+		Driver: "mysql",
+		DSN:    "root:zorkdata.8888@tcp(192.168.12.34:3306)/agent_engine?charset=utf8mb4&parseTime=True&loc=Local",
+	})
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	t.Log(string(bytes))
+	defer conn.Close()
+	service, err := NewDBService(conn)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	messages, err := service.SessionMessages(context.Background(), "9ec96ef4-3e81-482f-9742-5e2cf79faeaa")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	bytes, err := json.Marshal(messages)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	os.WriteFile("msg.json", bytes, 0666)
+	//app, err := New(context.Background(), opts...)
+	//if err != nil {
+	//	fmt.Println(err)
+	//	return
+	//}
+	//defer app.Shutdown()
+	//bytes, err := json.Marshal(providers)
+	//if err != nil {
+	//	t.Error(err)
+	//	return
+	//}
+	//t.Log(string(bytes))
 }
