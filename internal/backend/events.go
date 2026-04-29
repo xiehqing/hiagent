@@ -8,16 +8,18 @@ import (
 	mcptools "github.com/xiehqing/hiagent/internal/agent/tools/mcp"
 	"github.com/xiehqing/hiagent/internal/app"
 	"github.com/xiehqing/hiagent/internal/config"
+	"github.com/xiehqing/hiagent/internal/pubsub"
 )
 
-// SubscribeEvents returns the event channel for a workspace's app.
-func (b *Backend) SubscribeEvents(workspaceID string) (<-chan tea.Msg, error) {
+// SubscribeEvents returns a per-caller event channel for a workspace.
+// Each caller receives all events; multiple callers do not compete.
+func (b *Backend) SubscribeEvents(ctx context.Context, workspaceID string) (<-chan pubsub.Event[tea.Msg], error) {
 	ws, err := b.GetWorkspace(workspaceID)
 	if err != nil {
 		return nil, err
 	}
 
-	return ws.Events(), nil
+	return ws.Events(ctx), nil
 }
 
 // GetLSPStates returns the state of all LSP clients.
@@ -65,10 +67,9 @@ func (b *Backend) GetWorkspaceProviders(workspaceID string) (any, error) {
 		return nil, err
 	}
 
-	providers, _ := config.Providers(ws.Cfg.Config())
-	openProviders, err := config.OpenProviders(ws.Cfg.Config())
-	if err == nil {
-		providers = append(providers, openProviders...)
+	providers, err := config.KnownProviders(ws.Cfg.Config(), ws.Cfg.Conn())
+	if err != nil {
+		return nil, err
 	}
 	return providers, nil
 }

@@ -134,6 +134,27 @@ func TestConfigStore_RuntimeOverrides_MutableViaPointer(t *testing.T) {
 	require.True(t, store.Overrides().SkipPermissionRequests)
 }
 
+func TestConfigStoreReloadFromDiskPreservesRuntimeDatabaseOverride(t *testing.T) {
+	t.Setenv("CRUSH_DISABLE_PROVIDER_AUTO_UPDATE", "1")
+
+	dir := t.TempDir()
+	store, err := Load(dir, "", false)
+	require.NoError(t, err)
+
+	store.Overrides().Database = &DatabaseOptions{
+		Driver: "sqlite",
+	}
+	store.Config().Options.Database = &DatabaseOptions{
+		Driver: "sqlite",
+	}
+
+	err = store.ReloadFromDisk(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, store.Config().Options.Database)
+	require.Equal(t, "sqlite", store.Config().Options.Database.Driver)
+	require.Empty(t, store.Config().Options.Database.DSN)
+}
+
 func TestGlobalWorkspaceDir(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CRUSH_GLOBAL_DATA", dir)

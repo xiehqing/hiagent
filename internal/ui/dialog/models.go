@@ -143,13 +143,9 @@ func NewModels(com *common.Common, isOnboarding bool) (*Models, error) {
 	m.keyMap.Close = CloseKey
 
 	var err error
-	m.providers, err = config.Providers(m.com.Config())
+	m.providers, err = config.KnownProviders(m.com.Config(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get providers: %w", err)
-	}
-	openProviders, err := config.OpenProviders(m.com.Config())
-	if err == nil {
-		m.providers = append(m.providers, openProviders...)
 	}
 
 	if err := m.setProviderItems(); err != nil {
@@ -358,14 +354,9 @@ func (m *Models) setProviderItems() error {
 	addedProviders := make(map[string]bool)
 
 	// Get a list of known providers to compare against
-	knownProviders, err := config.Providers(cfg)
+	knownProviders, err := config.KnownProviders(cfg, nil)
 	if err != nil {
 		return fmt.Errorf("failed to get providers: %w", err)
-	}
-
-	openProviders, err := config.OpenProviders(cfg)
-	if err == nil {
-		knownProviders = append(knownProviders, openProviders...)
 	}
 
 	containsProviderFunc := func(id string) func(p catwalk.Provider) bool {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/xiehqing/hiagent/internal/db"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -37,7 +38,17 @@ var serverCmd = &cobra.Command{
 			return fmt.Errorf("failed to get debug flag: %v", err)
 		}
 
-		cfg, err := config.Load(config.GlobalWorkspaceDir(), dataDir, debug)
+		driver, _ := cmd.Flags().GetString("driver")
+		dsn, _ := cmd.Flags().GetString("dsn")
+
+		dataDir = config.DefaultDataDir(config.GlobalWorkspaceDir(), dataDir)
+
+		conn, err := db.ConnectWithOption(cmd.Context(), driver, dataDir, dsn)
+		if err != nil {
+			return fmt.Errorf("failed to connect to database: %w", err)
+		}
+
+		cfg, err := config.LoadNew(config.GlobalWorkspaceDir(), dataDir, conn, debug)
 		if err != nil {
 			return fmt.Errorf("failed to load configuration: %v", err)
 		}

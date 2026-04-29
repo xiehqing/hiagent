@@ -122,9 +122,17 @@ type HourDayHeatmapPt struct {
 
 func runStats(cmd *cobra.Command, _ []string) error {
 	dataDir, _ := cmd.Flags().GetString("data-dir")
+	driver, _ := cmd.Flags().GetString("driver")
+	dsn, _ := cmd.Flags().GetString("dsn")
 	ctx := cmd.Context()
+	dataDir = config.DefaultDataDir("", dataDir)
+	conn, err := db.ConnectWithOption(ctx, driver, dataDir, dsn)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer conn.Close()
 
-	cfg, err := config.Init("", dataDir, false)
+	cfg, err := config.InitNew("", dataDir, conn, false)
 	if err != nil {
 		return fmt.Errorf("failed to initialize config: %w", err)
 	}
@@ -136,12 +144,6 @@ func runStats(cmd *cobra.Command, _ []string) error {
 	}
 
 	event.StatsViewed()
-
-	conn, err := db.ConnectWithConfig(ctx, cfg.Config())
-	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
-	}
-	defer conn.Close()
 
 	stats, err := gatherStats(ctx, conn)
 	if err != nil {

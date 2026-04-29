@@ -101,13 +101,22 @@ func init() {
 type sessionServices struct {
 	sessions session.Service
 	messages message.Service
+	cfg      *config.ConfigStore
 }
 
 func sessionSetup(cmd *cobra.Command) (context.Context, *sessionServices, func(), error) {
 	dataDir, _ := cmd.Flags().GetString("data-dir")
+	driver, _ := cmd.Flags().GetString("driver")
+	dsn, _ := cmd.Flags().GetString("dsn")
 	ctx := cmd.Context()
 
-	cfg, err := config.Init("", dataDir, false)
+	dataDir = config.DefaultDataDir("", dataDir)
+	conn, err := db.ConnectWithOption(ctx, driver, dataDir, dsn)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	cfg, err := config.InitNew("", dataDir, conn, false)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to initialize config: %w", err)
 	}
@@ -118,15 +127,11 @@ func sessionSetup(cmd *cobra.Command) (context.Context, *sessionServices, func()
 		event.Init()
 	}
 
-	conn, err := db.ConnectWithConfig(ctx, cfg.Config())
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to connect to database: %w", err)
-	}
-
 	queries := db.New(conn)
 	svc := &sessionServices{
 		sessions: session.NewService(queries, conn),
 		messages: message.NewService(queries),
+		cfg:      cfg,
 	}
 	return ctx, svc, func() { conn.Close() }, nil
 }
@@ -280,7 +285,7 @@ func runSessionShow(cmd *cobra.Command, args []string) error {
 	if sessionShowJSON {
 		return outputSessionJSON(cmd.OutOrStdout(), sess, msgPtrs)
 	}
-	return outputSessionHuman(ctx, sess, msgPtrs)
+	return outputSessionHuman(ctx, svc.cfg, sess, msgPtrs)
 }
 
 func runSessionDelete(cmd *cobra.Command, args []string) error {
@@ -387,7 +392,7 @@ func runSessionLast(cmd *cobra.Command, _ []string) error {
 	if sessionLastJSON {
 		return outputSessionJSON(cmd.OutOrStdout(), sess, msgPtrs)
 	}
-	return outputSessionHuman(ctx, sess, msgPtrs)
+	return outputSessionHuman(ctx, svc.cfg, sess, msgPtrs)
 }
 
 const (
@@ -437,8 +442,12 @@ func outputSessionJSON(w io.Writer, sess session.Session, msgs []*message.Messag
 	return enc.Encode(output)
 }
 
-func outputSessionHuman(ctx context.Context, sess session.Session, msgs []*message.Message) error {
-	styles := styles.CharmtonePantera()
+func outputSessionHuman(ctx context.Context, cfg *config.ConfigStore, sess session.Session, msgs []*message.Message) error {
+	var providerID string
+	if cfg != nil {
+		providerID = cfg.Config().Models[config.SelectedModelTypeLarge].Provider
+	}
+	styles := styles.ThemeForProvider(providerID)
 	toolResults := chat.BuildToolResultMap(msgs)
 
 	width := sessionOutputWidth

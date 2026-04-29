@@ -50,6 +50,8 @@ func init() {
 	rootCmd.PersistentFlags().StringP("cwd", "c", "", "Current working directory")
 	rootCmd.PersistentFlags().StringP("data-dir", "D", "", "Custom crush data directory")
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "Debug")
+	rootCmd.PersistentFlags().StringP("driver", "T", "sqlite", "Custom database driver (sqlite, mysql)")
+	rootCmd.PersistentFlags().StringP("dsn", "u", "", "Custom mysql connection string (user:password@tcp(localhost:3306)/crush)")
 	rootCmd.PersistentFlags().StringVarP(&clientHost, "host", "H", server.DefaultHost(), "Connect to a specific crush server host (for advanced users)")
 	rootCmd.Flags().BoolP("help", "h", false, "Help")
 	rootCmd.Flags().BoolP("yolo", "y", false, "Automatically accept all permissions (dangerous mode)")
@@ -92,6 +94,9 @@ crush --yolo
 
 # Run with custom data directory
 crush --data-dir /path/to/custom/.crush
+
+# Run with custom driver mysql/sqlite
+crush --driver mysql --dsn "user:password@tcp(localhost:3306)/crush"
 
 # Continue a previous session
 crush --session {session-id}
@@ -245,14 +250,20 @@ func setupLocalWorkspace(cmd *cobra.Command) (workspace.Workspace, func(), error
 	debug, _ := cmd.Flags().GetBool("debug")
 	yolo, _ := cmd.Flags().GetBool("yolo")
 	dataDir, _ := cmd.Flags().GetString("data-dir")
+	driver, _ := cmd.Flags().GetString("driver")
+	dsn, _ := cmd.Flags().GetString("dsn")
 	ctx := cmd.Context()
-
 	cwd, err := ResolveCwd(cmd)
 	if err != nil {
 		return nil, nil, err
 	}
+	dataDir = config.DefaultDataDir(cwd, dataDir)
+	conn, err := db.ConnectWithOption(ctx, driver, dataDir, dsn)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to connect to database: %v", err)
+	}
 
-	store, err := config.Init(cwd, dataDir, debug)
+	store, err := config.InitNew(cwd, dataDir, conn, debug)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -273,11 +284,6 @@ func setupLocalWorkspace(cmd *cobra.Command) (workspace.Workspace, func(), error
 
 	if err := projects.Register(cwd, cfg.Options.DataDirectory); err != nil {
 		slog.Warn("Failed to register project", "error", err)
-	}
-
-	conn, err := db.ConnectWithConfig(ctx, cfg)
-	if err != nil {
-		return nil, nil, err
 	}
 
 	logFile := filepath.Join(cfg.Options.DataDirectory, "logs", "crush.log")

@@ -3,6 +3,7 @@ package config
 import (
 	"cmp"
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"os"
@@ -32,6 +33,7 @@ type fileSnapshot struct {
 // the lifetime of the process (or workspace).
 type RuntimeOverrides struct {
 	SkipPermissionRequests bool
+	Database               *DatabaseOptions
 }
 
 // ConfigStore is the single entry point for all config access. It owns the
@@ -50,11 +52,16 @@ type ConfigStore struct {
 	snapshots          map[string]fileSnapshot // path -> snapshot at last capture
 	autoReloadDisabled bool                    // set during load/reload to prevent re-entrancy
 	reloadInProgress   bool                    // set during reload to avoid disk writes mid-reload
+	conn               *sql.DB
 }
 
 // Config returns the pure-data config struct (read-only after load).
 func (s *ConfigStore) Config() *Config {
 	return s.config
+}
+
+func (s *ConfigStore) Conn() *sql.DB {
+	return s.conn
 }
 
 // WorkingDir returns the current working directory.
@@ -80,6 +87,11 @@ func (s *ConfigStore) KnownProviders() []catwalk.Provider {
 	return s.knownProviders
 }
 
+// Providers returns the list of known providers.
+func (s *ConfigStore) Providers() ([]ProviderItem, error) {
+	return GetAllProviders(s.config, s.conn)
+}
+
 // SetupAgents configures the coder and task agents on the config.
 func (s *ConfigStore) SetupAgents() {
 	s.config.SetupAgents()
@@ -88,6 +100,19 @@ func (s *ConfigStore) SetupAgents() {
 // Overrides returns the runtime overrides for this store.
 func (s *ConfigStore) Overrides() *RuntimeOverrides {
 	return &s.overrides
+}
+
+func applyRuntimeOverrides(cfg *Config, overrides RuntimeOverrides) {
+	if cfg == nil {
+		return
+	}
+	if cfg.Options == nil {
+		cfg.Options = &Options{}
+	}
+	if overrides.Database != nil {
+		db := *overrides.Database
+		cfg.Options.Database = &db
+	}
 }
 
 // LoadedPaths returns the config file paths that were successfully loaded.
@@ -223,7 +248,7 @@ func (s *ConfigStore) SetRuntimePreferredModel(provider string, model string) er
 	if err := s.UpdatePreferredModel(ScopeWorkspace, SelectedModelTypeLarge, selectedModel); err != nil {
 		return err
 	}
-	knownProvider, err := s.config.GetProvider(provider)
+	knownProvider, err := s.config.GetProvider(s.conn, provider)
 	if err != nil {
 		return err
 	}
@@ -640,19 +665,22 @@ func (s *ConfigStore) ReloadFromDisk(ctx context.Context) error {
 		}
 	}
 
+	// Validate hooks after all config merging is complete so matcher
+	// regexes are recompiled on the reloaded config (mirrors Load).
+	if err := cfg.ValidateHooks(); err != nil {
+		return fmt.Errorf("invalid hook configuration on reload: %w", err)
+	}
+
 	// Preserve runtime overrides
 	overrides := s.overrides
+	applyRuntimeOverrides(cfg, overrides)
 
 	// Reconfigure providers
 	env := env.New()
 	resolver := NewShellVariableResolver(env)
-	providers, err := Providers(cfg)
+	providers, err := KnownProviders(cfg, s.conn)
 	if err != nil {
 		return fmt.Errorf("failed to load providers during reload: %w", err)
-	}
-	openProviders, err := OpenProviders(cfg)
-	if err == nil {
-		providers = append(providers, openProviders...)
 	}
 
 	if err := cfg.configureProviders(s, env, resolver, providers); err != nil {

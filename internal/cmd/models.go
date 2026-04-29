@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/xiehqing/hiagent/internal/db"
 	"os"
 	"slices"
 	"sort"
@@ -32,8 +33,16 @@ crush models gpt5`,
 
 		dataDir, _ := cmd.Flags().GetString("data-dir")
 		debug, _ := cmd.Flags().GetBool("debug")
+		driver, _ := cmd.Flags().GetString("driver")
+		dsn, _ := cmd.Flags().GetString("dsn")
+		ctx := cmd.Context()
+		dataDir = config.DefaultDataDir(cwd, dataDir)
+		conn, err := db.ConnectWithOption(ctx, driver, dataDir, dsn)
+		if err != nil {
+			return fmt.Errorf("failed to connect to database: %v", err)
+		}
 
-		cfg, err := config.Init(cwd, dataDir, debug)
+		cfg, err := config.InitNew(cwd, dataDir, conn, debug)
 		if err != nil {
 			return err
 		}

@@ -102,6 +102,22 @@ func ConnectWithConfig(ctx context.Context, cfg *config.Config) (*sql.DB, error)
 	}
 }
 
+// ConnectWithOption opens the configured database backend.
+//
+// When no database configuration is provided, SQLite remains the default.
+func ConnectWithOption(ctx context.Context, driver, dataDir, dsn string) (*sql.DB, error) {
+	if driver == "" || driver == "sqlite" {
+		return Connect(ctx, dataDir)
+	}
+
+	switch driver {
+	case "mysql":
+		return ConnectMySQL(ctx, dsn)
+	default:
+		return nil, fmt.Errorf("unsupported database driver: %s", driver)
+	}
+}
+
 // ConnectMySQL opens a MySQL database connection and runs MySQL migrations.
 func ConnectMySQL(ctx context.Context, dsn string) (*sql.DB, error) {
 	if dsn == "" {

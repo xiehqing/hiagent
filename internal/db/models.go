@@ -50,3 +50,38 @@ type Session struct {
 	SummaryMessageID sql.NullString `json:"summary_message_id"`
 	Todos            sql.NullString `json:"todos"`
 }
+
+type Provider struct {
+	ID                  string         `json:"id"`
+	Name                string         `json:"name"`
+	Type                string         `json:"type"`
+	APIEndpoint         sql.NullString `json:"api_endpoint"`
+	APIKey              sql.NullString `json:"api_key"`
+	DefaultLargeModelID sql.NullString `json:"default_large_model_id"`
+	DefaultSmallModelID sql.NullString `json:"default_small_model_id"`
+	DefaultHeaders      sql.NullString `json:"default_headers"`
+	Disabled            bool           `json:"disabled"`
+	SortOrder           int64          `json:"sort_order"`
+	CreatedAt           int64          `json:"created_at"`
+	UpdatedAt           int64          `json:"updated_at"`
+}
+
+type BigModel struct {
+	ProviderID             string         `json:"provider_id"`
+	ID                     string         `json:"id"`
+	Name                   string         `json:"name"`
+	CostPer1MIn            float64        `json:"cost_per_1m_in"`
+	CostPer1MOut           float64        `json:"cost_per_1m_out"`
+	CostPer1MInCached      float64        `json:"cost_per_1m_in_cached"`
+	CostPer1MOutCached     float64        `json:"cost_per_1m_out_cached"`
+	ContextWindow          int64          `json:"context_window"`
+	DefaultMaxTokens       int64          `json:"default_max_tokens"`
+	CanReason              bool           `json:"can_reason"`
+	ReasoningLevels        sql.NullString `json:"reasoning_levels"`
+	DefaultReasoningEffort sql.NullString `json:"default_reasoning_effort"`
+	SupportsImages         bool           `json:"supports_images"`
+	Disabled               bool           `json:"disabled"`
+	SortOrder              int64          `json:"sort_order"`
+	CreatedAt              int64          `json:"created_at"`
+	UpdatedAt              int64          `json:"updated_at"`
+}

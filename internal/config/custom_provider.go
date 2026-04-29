@@ -45,10 +45,36 @@ func CustomProviderData() string {
 	return filepath.Join(home.Dir(), ".local", "share", appName, fmt.Sprintf("%s.json", customProviderName))
 }
 
-// OpenProviders 返回开放模型提供者
-func OpenProviders(cfg *Config) ([]catwalk.Provider, error) {
-	openProviderFile := OpenProviderData()
+// CustomProviders 返回开放模型提供者
+func CustomProviders() ([]catwalk.Provider, string, error) {
 	customProviderFile := CustomProviderData()
+	var allProviders = make([]catwalk.Provider, 0)
+	if customProviderFile != "" {
+		if _, err := os.Stat(customProviderFile); err != nil && os.IsNotExist(err) {
+			slog.Warn("No Custom Provider provider file found", "file", customProviderFile)
+		} else {
+			slog.Info("Custom Provider provider", "file", customProviderFile)
+			bytes, err := os.ReadFile(customProviderFile)
+			if err != nil {
+				slog.Warn("Failed to read Custom Provider provider file", "err", err)
+			} else {
+				var openProviders []catwalk.Provider
+				if err = json.Unmarshal(bytes, &openProviders); err != nil {
+					slog.Error("failed to unmarshal Custom Provider provider file", "err", err)
+				} else {
+					allProviders = append(allProviders, openProviders...)
+				}
+			}
+		}
+	} else {
+		slog.Warn("No Custom Provider provider file found")
+	}
+	return allProviders, customProviderFile, nil
+}
+
+// OpenProviders 返回开放模型提供者
+func OpenProviders() ([]catwalk.Provider, string, error) {
+	openProviderFile := OpenProviderData()
 	var allProviders = make([]catwalk.Provider, 0)
 	if openProviderFile != "" {
 		if _, err := os.Stat(openProviderFile); err != nil && os.IsNotExist(err) {
@@ -70,25 +96,5 @@ func OpenProviders(cfg *Config) ([]catwalk.Provider, error) {
 	} else {
 		slog.Warn("no Open Provider provider file found")
 	}
-	if customProviderFile != "" {
-		if _, err := os.Stat(customProviderFile); err != nil && os.IsNotExist(err) {
-			slog.Warn("No Custom Provider provider file found", "file", customProviderFile)
-		} else {
-			slog.Info("Custom Provider provider", "file", customProviderFile)
-			bytes, err := os.ReadFile(customProviderFile)
-			if err != nil {
-				slog.Warn("Failed to read Custom Provider provider file", "err", err)
-			} else {
-				var openProviders []catwalk.Provider
-				if err = json.Unmarshal(bytes, &openProviders); err != nil {
-					slog.Error("failed to unmarshal Custom Provider provider file", "err", err)
-				} else {
-					allProviders = append(allProviders, openProviders...)
-				}
-			}
-		}
-	} else {
-		slog.Warn("No Custom Provider provider file found")
-	}
-	return allProviders, nil
+	return allProviders, openProviderFile, nil
 }

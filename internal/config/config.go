@@ -3,13 +3,13 @@ package config
 import (
 	"cmp"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
 	"net/http"
 	"net/url"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -153,6 +153,126 @@ func (c *ProviderConfig) ToProvider() catwalk.Provider {
 	}
 
 	return provider
+}
+
+// KnownProviders returns providers from all configured sources.
+func KnownProviders(cfg *Config, db *sql.DB) ([]catwalk.Provider, error) {
+	providers, err := Providers(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	dbProviders, err := ProvidersDB(db)
+	if err != nil {
+		return nil, err
+	}
+	providers = append(providers, dbProviders...)
+
+	openProviders, _, err := OpenProviders()
+	if err == nil {
+		providers = append(providers, openProviders...)
+	}
+
+	customProviders, _, err := CustomProviders()
+	if err == nil {
+		providers = append(providers, customProviders...)
+	}
+
+	return providers, nil
+}
+
+// AllKnownProviders returns providers from all configured sources.
+func AllKnownProviders(cfg *Config, db *sql.DB) ([]catwalk.Provider, error) {
+	providers, err := Providers(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	dbProviders, err := ProvidersDB(db)
+	if err != nil {
+		return nil, err
+	}
+	providers = append(providers, dbProviders...)
+
+	openProviders, _, err := OpenProviders()
+	if err == nil {
+		providers = append(providers, openProviders...)
+	}
+
+	customProviders, _, err := CustomProviders()
+	if err == nil {
+		providers = append(providers, customProviders...)
+	}
+
+	return providers, nil
+}
+
+func GetAllProviders(cfg *Config, db *sql.DB) ([]ProviderItem, error) {
+	var allProviders = make([]ProviderItem, 0)
+	providers, err := Providers(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	allProviders = append(allProviders, ProviderItem{
+		Source:    ProviderSourceInner,
+		Providers: providers,
+	})
+
+	dbProviders, err := ProvidersDB(db)
+	if err == nil {
+		allProviders = append(allProviders, ProviderItem{
+			Source:    ProviderSourceDB,
+			Providers: dbProviders,
+		})
+	} else {
+		slog.Error("Failed to get providers from database", "error", err)
+	}
+	openProviders, openPath, err := OpenProviders()
+	if err == nil {
+		allProviders = append(allProviders, ProviderItem{
+			Source:    ProviderSourceCustom,
+			Providers: openProviders,
+			Path:      openPath,
+		})
+	}
+
+	customProviders, customPath, err := CustomProviders()
+	if err == nil {
+		allProviders = append(allProviders, ProviderItem{
+			Source:    ProviderSourceCustom,
+			Providers: customProviders,
+			Path:      customPath,
+		})
+	}
+	return allProviders, nil
+}
+
+type ProviderItem struct {
+	Source    ProviderSource     `json:"source"`
+	Path      string             `json:"path"`
+	Providers []catwalk.Provider `json:"providers"`
+}
+
+type ProviderSource string
+
+const (
+	ProviderSourceInner  ProviderSource = "inner"
+	ProviderSourceDB     ProviderSource = "db"
+	ProviderSourceCustom ProviderSource = "custom"
+)
+
+func (s ProviderSource) String() string {
+	switch s {
+	case ProviderSourceInner:
+		return "内置"
+	case ProviderSourceDB:
+		return "数据库"
+	case ProviderSourceCustom:
+		return "自定义"
+	default:
+		return "未知"
+	}
 }
 
 func (c *ProviderConfig) SetupGitHubCopilot() {
@@ -377,7 +497,9 @@ func (t ToolGrep) GetTimeout() time.Duration {
 }
 
 // HookConfig defines a user-configured shell command that fires on a hook
-// event (e.g. PreToolUse).
+// event (e.g. PreToolUse). This is a pure-data struct: matcher compilation
+// is owned by hooks.Runner so a JSON round-trip, merge, or reload can't
+// silently drop compiled state.
 type HookConfig struct {
 	// Regex pattern tested against the tool name. Empty means match all.
 	Matcher string `json:"matcher,omitempty" jsonschema:"description=Regex pattern tested against the tool name. Empty means match all tools."`
@@ -385,15 +507,6 @@ type HookConfig struct {
 	Command string `json:"command" jsonschema:"required,description=Shell command to execute when the hook fires"`
 	// Timeout in seconds. Default 30.
 	Timeout int `json:"timeout,omitempty" jsonschema:"description=Timeout in seconds for the hook command,default=30"`
-
-	// Compiled matcher regex. Not serialized.
-	matcherRegex *regexp.Regexp
-}
-
-// MatcherRegex returns the compiled matcher regex, or nil if no matcher is
-// set.
-func (h *HookConfig) MatcherRegex() *regexp.Regexp {
-	return h.matcherRegex
 }
 
 // TimeoutDuration returns the hook timeout as a time.Duration, defaulting
@@ -460,14 +573,10 @@ func (c *Config) GetModel(provider, model string) *catwalk.Model {
 }
 
 // GetProvider returns the provider config for the given provider id.
-func (c *Config) GetProvider(provider string) (*catwalk.Provider, error) {
-	providers, err := Providers(c)
+func (c *Config) GetProvider(db *sql.DB, provider string) (*catwalk.Provider, error) {
+	providers, err := KnownProviders(c, db)
 	if err != nil {
 		return nil, err
-	}
-	openProviders, err := OpenProviders(c)
-	if err == nil {
-		providers = append(providers, openProviders...)
 	}
 	for _, p := range providers {
 		if p.ID == catwalk.InferenceProvider(provider) {

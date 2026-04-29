@@ -90,7 +90,13 @@ func (b *Backend) CreateWorkspace(args proto.Workspace) (*Workspace, proto.Works
 	}
 
 	id := uuid.New().String()
-	cfg, err := config.Init(args.Path, args.DataDir, args.Debug)
+	dataDir := config.DefaultDataDir(args.Path, args.DataDir)
+	conn, err := db.ConnectWithOption(b.ctx, args.Driver, dataDir, args.DSN)
+	if err != nil {
+		return nil, proto.Workspace{}, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	cfg, err := config.InitNew(args.Path, dataDir, conn, args.Debug)
 	if err != nil {
 		return nil, proto.Workspace{}, fmt.Errorf("failed to initialize config: %w", err)
 	}
@@ -99,11 +105,6 @@ func (b *Backend) CreateWorkspace(args proto.Workspace) (*Workspace, proto.Works
 
 	if err := createDotCrushDir(cfg.Config().Options.DataDirectory); err != nil {
 		return nil, proto.Workspace{}, fmt.Errorf("failed to create data directory: %w", err)
-	}
-
-	conn, err := db.ConnectWithConfig(b.ctx, cfg.Config())
-	if err != nil {
-		return nil, proto.Workspace{}, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
 	appWorkspace, err := app.New(b.ctx, conn, cfg)

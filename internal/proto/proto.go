@@ -17,6 +17,8 @@ type Workspace struct {
 	Path    string         `json:"path"`
 	YOLO    bool           `json:"yolo,omitempty"`
 	Debug   bool           `json:"debug,omitempty"`
+	Driver  string         `json:"driver,omitempty"`
+	DSN     string         `json:"dsn,omitempty"`
 	DataDir string         `json:"data_dir,omitempty"`
 	Version string         `json:"version,omitempty"`
 	Config  *config.Config `json:"config,omitempty"`
