@@ -18,6 +18,7 @@ import (
 	"github.com/xiehqing/hiagent/internal/session"
 	"log/slog"
 	"os"
+	"time"
 )
 
 type App struct {
@@ -283,9 +284,9 @@ func (a *AppService) SessionMessages(ctx context.Context, sessionID string) ([]D
 	if err != nil {
 		return nil, errors.WithMessage(err, "sdk.Sessions: failed to list session files")
 	}
-	mergeMessages := a.mergeMessages(messages)
+	//mergeMessages := a.mergeMessages(messages)
 	messageList := make([]DataMessage, 0)
-	for i, msg := range mergeMessages {
+	for i, msg := range messages {
 		dm := DataMessage{
 			ID:               msg.ID,
 			Role:             msg.Role,
@@ -293,34 +294,18 @@ func (a *AppService) SessionMessages(ctx context.Context, sessionID string) ([]D
 			Parts:            msg.Parts,
 			Model:            msg.Model,
 			Provider:         msg.Provider,
-			CreatedAt:        msg.CreatedAt,
-			UpdatedAt:        msg.UpdatedAt,
 			IsSummaryMessage: msg.IsSummaryMessage,
 		}
-		if i == len(mergeMessages)-1 {
+		if msg.CreatedAt != 0 {
+			dm.CreatedAt = time.Unix(msg.CreatedAt, 0).Format("2006-01-02 15:04:05")
+		}
+		if msg.UpdatedAt != 0 {
+			dm.UpdatedAt = time.Unix(msg.UpdatedAt, 0).Format("2006-01-02 15:04:05")
+		}
+		if i == len(messages)-1 {
 			dm.Files = files
 		}
 		messageList = append(messageList, dm)
 	}
 	return messageList, nil
-}
-
-func (a *AppService) mergeMessages(messages []message.Message) []message.Message {
-	var handleMessages = make([]message.Message, 0)
-	currentMsgRole := ""
-	for _, msg := range messages {
-		msgRole := ""
-		if msg.Role == message.User {
-			msgRole = "user"
-		} else {
-			msgRole = "assistant"
-		}
-		if currentMsgRole == "" || currentMsgRole != msgRole {
-			handleMessages = append(handleMessages, msg)
-			currentMsgRole = msgRole
-		} else {
-			handleMessages[len(handleMessages)-1].Parts = append(handleMessages[len(handleMessages)-1].Parts, msg.Parts...)
-		}
-	}
-	return handleMessages
 }

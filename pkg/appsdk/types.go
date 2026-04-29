@@ -122,8 +122,8 @@ type DataMessage struct {
 	Parts            []message.ContentPart `json:"parts"`
 	Model            string                `json:"model"`
 	Provider         string                `json:"provider"`
-	CreatedAt        int64                 `json:"createdAt"`
-	UpdatedAt        int64                 `json:"updatedAt"`
+	CreatedAt        string                `json:"createdAt"`
+	UpdatedAt        string                `json:"updatedAt"`
 	IsSummaryMessage bool                  `json:"is_summary_message"`
 	Files            []history.File        `json:"files,omitempty"`
 }
