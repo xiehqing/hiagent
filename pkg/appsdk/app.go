@@ -51,6 +51,22 @@ func applyRuntimeDatabaseOverride(store *config.ConfigStore, dc *DatabaseConfig)
 	}
 }
 
+// NewDBService 创建db服务
+func NewDBService(conn *sql.DB) (*AppService, error) {
+	q := db.New(conn)
+	sessions := session.NewService(q, conn)
+	messages := message.NewService(q)
+	files := history.NewService(q, conn)
+	providers := provider.NewService(q)
+	return &AppService{
+		Sessions:    sessions,
+		Messages:    messages,
+		Providers:   providers,
+		History:     files,
+		FileTracker: filetracker.NewService(q),
+	}, nil
+}
+
 func NewService(ctx context.Context, opts ...Option) (*AppService, error) {
 	o := &Options{
 		cfg: AppConfig{
