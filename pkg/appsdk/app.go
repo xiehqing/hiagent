@@ -22,6 +22,7 @@ import (
 )
 
 type App struct {
+	conn        *sql.DB
 	AppInstance *app.App
 }
 
@@ -142,6 +143,49 @@ func New(ctx context.Context, opts ...Option) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	cfg, err := config.InitNew(o.cfg.WorkDir, o.cfg.DataDir, conn, o.cfg.Debug)
+	if err != nil {
+		return nil, fmt.Errorf("sdk.New: failed to initialize config: %w", err)
+	}
+	cfg.Overrides().SkipPermissionRequests = o.cfg.SkipPermissionRequests
+	cfg.Config().Options.DisableProviderAutoUpdate = o.cfg.DisableProviderAutoUpdate
+	applyRuntimeDatabaseOverride(cfg, &o.cfg.Database)
+	if o.cfg.Database.Driver == DatabaseDriverSqlite {
+		if err = createDotCrushDir(cfg.Config().Options.DataDirectory); err != nil {
+			return nil, fmt.Errorf("sdk.New: failed to create data directory: %w", err)
+		}
+	}
+	if o.cfg.SelectedModel != "" && o.cfg.SelectedProvider != "" {
+		err = cfg.SetRuntimePreferredModel(o.cfg.SelectedProvider, o.cfg.SelectedModel)
+		if err != nil {
+			return nil, errors.WithMessage(err, "sdk.New: failed to set runtime preferred model")
+		}
+	}
+	app, err := app.NewWithSystemPrompt(ctx, conn, cfg, o.cfg.AdditionalSystemPrompt)
+	if err != nil {
+		return nil, fmt.Errorf("sdk.New: failed to create app workspace: %w", err)
+	}
+	return &App{AppInstance: app}, nil
+}
+
+func NewWithDB(ctx context.Context, conn *sql.DB, opts ...Option) (*App, error) {
+	if conn == nil {
+		return nil, fmt.Errorf("sdk.New: conn is required")
+	}
+	o := &Options{
+		cfg: AppConfig{
+			SkipPermissionRequests:    true,
+			Debug:                     false,
+			DisableProviderAutoUpdate: true,
+		},
+	}
+	for _, opt := range opts {
+		opt(o)
+	}
+	if o.cfg.WorkDir == "" {
+		return nil, fmt.Errorf("sdk.New: WorkDir is required (use sdk.WithWorkDir)")
+	}
+	o.cfg.DataDir = config.DefaultDataDir(o.cfg.WorkDir, o.cfg.DataDir)
 	cfg, err := config.InitNew(o.cfg.WorkDir, o.cfg.DataDir, conn, o.cfg.Debug)
 	if err != nil {
 		return nil, fmt.Errorf("sdk.New: failed to initialize config: %w", err)
